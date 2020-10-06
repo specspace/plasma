@@ -1,7 +1,7 @@
 package zlib
 
 import (
-	"github.com/4kills/libdeflate"
+	"github.com/4kills/go-libdeflate"
 	"sync"
 )
 
