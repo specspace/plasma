@@ -1,0 +1,7 @@
+github.com/4kills/go-libdeflate/v2 v2.0.2 h1:UnjnCl96u8NSGBnbJSrKoOhEPu8ex+OItG4rmSuO2Yo=
+github.com/4kills/go-libdeflate/v2 v2.0.2/go.mod h1:hyouZv4OAhHaaMpYuejstUN0xOg8mA+yy75WE3Ty6SM=
+github.com/Tnze/go-mc v1.16.1 h1:KX2h8pLjqz6bJVVJpMa0TE6lkcPmAyzhlfhFp8AwyEs=
+github.com/Tnze/go-mc v1.16.1/go.mod h1:LKj1KKSj4m58fpJaTmOHC3DdQKJ1RSfEGHFR1zMLSF8=
+github.com/gofrs/uuid v3.3.0+incompatible h1:8K4tyRfvU1CYPgJsveYFQMhpFd/wXNM7iK6rR7UHz84=
+github.com/gofrs/uuid v3.3.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
+github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=

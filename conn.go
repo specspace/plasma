@@ -3,7 +3,7 @@ package plasma
 import (
 	"bufio"
 	"crypto/cipher"
-	"github.com/spookspace/plasma/protocol/packet"
+	"github.com/specspace/plasma/protocol"
 	"io"
 	"net"
 )
@@ -46,17 +46,17 @@ func (c *conn) Write(b []byte) (int, error) {
 }
 
 // ReadPacket read a Packet from Conn.
-func (c *conn) ReadPacket() (packet.Packet, error) {
-	return packet.Read(c.r, c.threshold > 0)
+func (c *conn) ReadPacket() (protocol.Packet, error) {
+	return protocol.ReadPacket(c.r, c.threshold > 0)
 }
 
 // PeekPacket peeks a Packet from Conn.
-func (c *conn) PeekPacket() (packet.Packet, error) {
-	return packet.Peek(c.r, c.threshold > 0)
+func (c *conn) PeekPacket() (protocol.Packet, error) {
+	return protocol.PeekPacket(c.r, c.threshold > 0)
 }
 
 //WritePacket write a Packet to Conn.
-func (c *conn) WritePacket(p packet.Packet) error {
+func (c *conn) WritePacket(p protocol.Packet) error {
 	pk, err := p.Marshal(c.threshold)
 	if err != nil {
 		return err

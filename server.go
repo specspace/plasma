@@ -8,8 +8,10 @@ const defaultAddr string = ":25565"
 
 // Server defines the struct of a running Minecraft server
 type Server struct {
-	Addr     string
-	listener net.Listener
+	Addr        string
+	listener    net.Listener
+	isRunning   bool
+	connections []Conn
 }
 
 func (srv *Server) ListenAndServe() error {
@@ -33,7 +35,11 @@ func (srv *Server) ListenAndServe() error {
 	}
 }
 
-func (srv Server) Close() error {
+func (srv Server) IsRunning() bool {
+	return srv.isRunning
+}
+
+func (srv *Server) Close() error {
 	if srv.listener != nil {
 		return srv.listener.Close()
 	}
