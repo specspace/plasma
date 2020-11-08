@@ -4,22 +4,20 @@ import (
 	"github.com/specspace/plasma/protocol"
 )
 
-const ClientBoundRequestPacketID byte = 0x00
+const ServerBoundRequestPacketID byte = 0x00
 
-type ClientBoundRequest struct {
-	JSONResponse protocol.String
-}
+type ServerBoundRequest struct{}
 
-func (pk ClientBoundRequest) Marshal() protocol.Packet {
+func (pk ServerBoundRequest) Marshal() protocol.Packet {
 	return protocol.MarshalPacket(
-		ClientBoundRequestPacketID,
+		ServerBoundRequestPacketID,
 	)
 }
 
-func UnmarshalClientBoundRequest(packet protocol.Packet) (ClientBoundRequest, error) {
-	var pk ClientBoundRequest
+func UnmarshalServerBoundRequest(packet protocol.Packet) (ServerBoundRequest, error) {
+	var pk ServerBoundRequest
 
-	if packet.ID != ClientBoundRequestPacketID {
+	if packet.ID != ServerBoundRequestPacketID {
 		return pk, protocol.ErrInvalidPacketID
 	}
 

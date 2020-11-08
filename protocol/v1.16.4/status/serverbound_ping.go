@@ -4,23 +4,23 @@ import (
 	"github.com/specspace/plasma/protocol"
 )
 
-const ClientBoundPingPacketID byte = 0x01
+const ServerBoundPingPacketID byte = 0x01
 
-type ClientBoundPing struct {
+type ServerBoundPing struct {
 	Payload protocol.Long
 }
 
-func (pk ClientBoundPing) Marshal() protocol.Packet {
+func (pk ServerBoundPing) Marshal() protocol.Packet {
 	return protocol.MarshalPacket(
-		ClientBoundPingPacketID,
+		ServerBoundPingPacketID,
 		pk.Payload,
 	)
 }
 
-func UnmarshalClientBoundPing(packet protocol.Packet) (ClientBoundPing, error) {
-	var pk ClientBoundPing
+func UnmarshalServerBoundPing(packet protocol.Packet) (ServerBoundPing, error) {
+	var pk ServerBoundPing
 
-	if packet.ID != ClientBoundPingPacketID {
+	if packet.ID != ServerBoundPingPacketID {
 		return pk, protocol.ErrInvalidPacketID
 	}
 

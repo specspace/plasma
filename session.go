@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-func URLSessionServerHasJoined(username, sessionHash string) string {
+func MojangSessionServerURLHasJoined(username, sessionHash string) string {
 	return fmt.Sprintf(
 		"https://sessionserver.mojang.com/session/minecraft/hasJoined?username=%s&serverId=%s",
 		username,
@@ -16,9 +16,9 @@ func URLSessionServerHasJoined(username, sessionHash string) string {
 	)
 }
 
-func URLSessionServerHasJoinedWithIP(username, sessionHash, ip string) string {
+func MojangSessionServerURLHasJoinedWithIP(username, sessionHash, ip string) string {
 	return fmt.Sprintf("%s&ip=%s",
-		URLSessionServerHasJoined(username, sessionHash),
+		MojangSessionServerURLHasJoined(username, sessionHash),
 		ip,
 	)
 }
@@ -31,25 +31,37 @@ func SessionHash(serverID string, sharedSecret, publicKey []byte) string {
 	return notchHash.HexDigest()
 }
 
-func AuthenticateSession(username, sessionHash string) ([16]byte, string, string, error) {
-	return AuthenticateSessionPreventProxy(username, sessionHash, "")
+type Session struct {
+	PlayerUUID uuid.UUID
+	PlayerSkin Skin
 }
 
-func AuthenticateSessionPreventProxy(username, sessionHash, ip string) ([16]byte, string, string, error) {
+type SessionAuthenticator interface {
+	AuthenticateSession(username, sessionHash string) (Session, error)
+	AuthenticateSessionPreventProxy(username, sessionHash, ip string) (Session, error)
+}
+
+type MojangSessionAuthenticator struct{}
+
+func (auth MojangSessionAuthenticator) AuthenticateSession(username, sessionHash string) (Session, error) {
+	return auth.AuthenticateSessionPreventProxy(username, sessionHash, "")
+}
+
+func (auth MojangSessionAuthenticator) AuthenticateSessionPreventProxy(username, sessionHash, ip string) (Session, error) {
 	var url string
 	if ip == "" {
-		url = URLSessionServerHasJoined(username, sessionHash)
+		url = MojangSessionServerURLHasJoined(username, sessionHash)
 	} else {
-		url = URLSessionServerHasJoinedWithIP(username, sessionHash, ip)
+		url = MojangSessionServerURLHasJoinedWithIP(username, sessionHash, ip)
 	}
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return [16]byte{}, "", "", err
+		return Session{}, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return [16]byte{}, "", "", fmt.Errorf("unable to authenticate session (%s)", resp.Status)
+		return Session{}, fmt.Errorf("unable to authenticate session (%s)", resp.Status)
 	}
 
 	var p struct {
@@ -63,28 +75,34 @@ func AuthenticateSessionPreventProxy(username, sessionHash, ip string) ([16]byte
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
-		return [16]byte{}, "", "", err
+		return Session{}, err
 	}
 	_ = resp.Body.Close()
 
-	id, err := uuid.FromString(p.ID)
+	playerUUID, err := uuid.FromString(p.ID)
 	if err != nil {
-		return [16]byte{}, "", "", err
+		return Session{}, err
 	}
 
-	var skin string
-	var signature string
+	var skinValue string
+	var skinSignature string
 	for _, property := range p.Properties {
 		if property.Name == "textures" {
-			skin = property.Value
-			signature = property.Signature
+			skinValue = property.Value
+			skinSignature = property.Signature
 			break
 		}
 	}
 
-	if skin == "" {
-		return [16]byte{}, "", "", errors.New("no skin in request")
+	if skinValue == "" {
+		return Session{}, errors.New("no skinValue in request")
 	}
 
-	return id, skin, signature, nil
+	return Session{
+		PlayerUUID: playerUUID,
+		PlayerSkin: Skin{
+			Value:     skinValue,
+			Signature: skinSignature,
+		},
+	}, nil
 }
