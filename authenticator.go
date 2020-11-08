@@ -43,11 +43,11 @@ type SessionAuthenticator interface {
 
 type MojangSessionAuthenticator struct{}
 
-func (auth MojangSessionAuthenticator) AuthenticateSession(username, sessionHash string) (Session, error) {
+func (auth *MojangSessionAuthenticator) AuthenticateSession(username, sessionHash string) (Session, error) {
 	return auth.AuthenticateSessionPreventProxy(username, sessionHash, "")
 }
 
-func (auth MojangSessionAuthenticator) AuthenticateSessionPreventProxy(username, sessionHash, ip string) (Session, error) {
+func (auth *MojangSessionAuthenticator) AuthenticateSessionPreventProxy(username, sessionHash, ip string) (Session, error) {
 	var url string
 	if ip == "" {
 		url = MojangSessionServerURLHasJoined(username, sessionHash)

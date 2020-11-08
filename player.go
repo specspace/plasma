@@ -6,10 +6,22 @@ import (
 )
 
 type player struct {
-	Conn
+	*conn
 	uuid     uuid.UUID
 	username string
 	skin     Skin
+}
+
+func (p player) UUID() uuid.UUID {
+	return p.uuid
+}
+
+func (p player) Username() string {
+	return p.username
+}
+
+func (p player) Skin() Skin {
+	return p.skin
 }
 
 type Player interface {

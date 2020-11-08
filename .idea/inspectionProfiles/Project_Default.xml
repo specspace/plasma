@@ -17,6 +17,7 @@
         <method importPath="net" receiver="Conn" name="Close" />
         <method importPath="github.com/specspace/plasma" receiver="Conn" name="Close" />
         <method importPath="github.com/specspace/plasma" receiver="ResponseWriter" name="WritePacket" />
+        <method importPath="github.com/specspace/plasma" receiver="conn" name="Close" />
       </methods>
     </inspection_tool>
   </profile>
