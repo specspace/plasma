@@ -1,13 +1,16 @@
 package plasma
 
 import (
+	"bufio"
 	"crypto/aes"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/gofrs/uuid"
 	"github.com/specspace/plasma/protocol"
 	"github.com/specspace/plasma/protocol/cfb8"
-	"log"
 	"net"
+	"os"
 	"sync"
 )
 
@@ -21,106 +24,155 @@ type Handler interface {
 	ServeProtocol(w ResponseWriter, r *Request)
 }
 
-const (
-	DefaultServerAddr string = ":25565"
-)
-
-type muPlayers struct {
-	sync.RWMutex
-	players map[*conn]player
-}
-
-func (p *muPlayers) add(key *conn, value player) {
-	p.Lock()
-	defer p.Unlock()
-	p.players[key] = value
-}
-
-func (p *muPlayers) get(key *conn) (player, error) {
-	p.Lock()
-	defer p.Unlock()
-	pl, ok := p.players[key]
-	if !ok {
-		return player{}, errors.New("player does not exist")
+type StatusResponse struct {
+	DisconnectMessage string
+	Version           Version
+	IconPath          string
+	Motd              string
+	MaxPlayers        int
+	PlayersOnline     int
+	Players           []struct {
+		Name string
+		ID   string
 	}
-	return pl, nil
 }
 
-func (p *muPlayers) delete(key *conn) {
-	p.Lock()
-	defer p.Unlock()
-	delete(p.players, key)
+type StatusResponseJSON struct {
+	Version struct {
+		Name     string `json:"name"`
+		Protocol int    `json:"protocol"`
+	} `json:"version"`
+	Players struct {
+		Max    int `json:"max"`
+		Online int `json:"online"`
+		Sample []struct {
+			Name string `json:"name"`
+			ID   string `json:"id"`
+		} `json:"sample"`
+	} `json:"players"`
+	Description struct {
+		Text string `json:"text"`
+	} `json:"description"`
+	Favicon string `json:"favicon"`
 }
+
+func (sr StatusResponse) JSON() (StatusResponseJSON, error) {
+	var response StatusResponseJSON
+	response.Version.Name = sr.Version.Name
+	response.Version.Protocol = sr.Version.ProtocolNumber
+	response.Players.Max = sr.MaxPlayers
+	response.Players.Online = sr.PlayersOnline
+	response.Description.Text = sr.Motd
+
+	for _, p := range sr.Players {
+		response.Players.Sample = append(response.Players.Sample,
+			struct {
+				Name string `json:"name"`
+				ID   string `json:"id"`
+			}{
+				Name: p.Name,
+				ID:   p.ID,
+			},
+		)
+	}
+
+	if sr.IconPath != "" {
+		img64, err := loadImageAndEncodeToBase64String(sr.IconPath)
+		if err != nil {
+			return response, err
+		}
+		response.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
+	}
+
+	return response, nil
+}
+
+func loadImageAndEncodeToBase64String(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer imgFile.Close()
+
+	fileInfo, err := imgFile.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	buffer := make([]byte, fileInfo.Size())
+	fileReader := bufio.NewReader(imgFile)
+	_, err = fileReader.Read(buffer)
+	if err != nil {
+		return "", nil
+	}
+
+	return base64.StdEncoding.EncodeToString(buffer), nil
+}
+
+const DefaultAddr string = ":25565"
 
 // Server defines the struct of a running Minecraft server
 type Server struct {
 	ID         string
 	Addr       string
-	Version    string
-	ServerID   string
 	Encryption bool
 
 	SessionEncrypter     SessionEncrypter
 	SessionAuthenticator SessionAuthenticator
+	Handler              Handler
 
-	HandshakeHandler Handler
-	StatusHandler    Handler
-	LoginHandler     Handler
-	PlayHandler      Handler
-
-	listener  net.Listener
-	players   muPlayers
-	mu        sync.Mutex
-	isRunning bool
+	listener net.Listener
+	players  map[*conn]player
+	mu       sync.RWMutex
 }
 
-func NewServerWithDefaults() (*Server, error) {
-	encrypter, err := NewDefaultSessionEncrypter()
-	if err != nil {
-		log.Fatal(err)
-	}
+func (srv *Server) getPlayer(conn *conn) player {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
+	return srv.players[conn]
+}
 
-	return &Server{
-		Addr:                 DefaultServerAddr,
-		Version:              "1.16.4",
-		Encryption:           true,
-		SessionEncrypter:     encrypter,
-		SessionAuthenticator: &MojangSessionAuthenticator{},
-		HandshakeHandler:     NewDefaultHandshakeMux(),
-		StatusHandler:        NewDefaultStatusMux(),
-		LoginHandler:         NewDefaultLoginMux(),
-		PlayHandler:          disconnectHandler("You are now in Play state"),
-		players: muPlayers{
-			RWMutex: sync.RWMutex{},
-			players: map[*conn]player{},
-		},
-		mu: sync.Mutex{},
-	}, nil
+func (srv *Server) putPlayer(c *conn, p player) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	srv.players[c] = p
+}
+
+func (srv *Server) removePlayer(c *conn) {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	delete(srv.players, c)
+}
+
+func (srv *Server) Player(r *Request) Player {
+	return srv.getPlayer(r.conn)
+}
+
+func (srv *Server) Players() []Player {
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
+
+	var players []Player
+	for _, player := range srv.players {
+		players = append(players, player)
+	}
+	return players
 }
 
 func (srv *Server) AddPlayer(r *Request, username string) {
-	srv.players.add(r.conn, player{
+	srv.putPlayer(r.conn, player{
 		conn:     r.conn,
 		uuid:     uuid.NewV3(uuid.NamespaceOID, "OfflinePlayer:"+username),
 		username: username,
 	})
 }
 
-func (srv *Server) UpdatePlayer(r *Request, uuid uuid.UUID, skin Skin) error {
-	player, err := srv.players.get(r.conn)
-	if err != nil {
-		return err
-	}
-	player.uuid = uuid
-	player.skin = skin
-	srv.players.add(r.conn, player)
-	return nil
-}
-
 func (srv *Server) IsRunning() bool {
-	srv.mu.Lock()
-	defer srv.mu.Unlock()
-	return srv.isRunning
+	return srv.listener != nil
 }
 
 func (srv *Server) Close() error {
@@ -138,8 +190,11 @@ func (srv *Server) ListenAndServe() error {
 
 	addr := srv.Addr
 	if addr == "" {
-		addr = DefaultServerAddr
+		addr = DefaultAddr
 	}
+
+	srv.players = map[*conn]player{}
+	srv.mu = sync.RWMutex{}
 
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -154,14 +209,61 @@ func (srv *Server) ListenAndServe() error {
 			return err
 		}
 
-		go srv.HandleConn(c)
+		go srv.serve(c)
 	}
+}
+
+func (srv *Server) serve(c net.Conn) {
+	conn := wrapConn(c)
+	srv.putPlayer(conn, player{})
+	defer func() {
+		srv.removePlayer(conn)
+		conn.Close()
+	}()
+
+	r := Request{
+		RemoteAddr: conn.RemoteAddr().String(),
+		Server:     srv,
+		conn:       conn,
+	}
+
+	w := responseWriter{
+		conn: conn,
+	}
+
+	for {
+		pk, err := conn.ReadPacket()
+		if err != nil {
+			return
+		}
+
+		r.Packet = pk
+
+		srv.Handler.ServeProtocol(&w, &r)
+	}
+}
+
+func ListenAndServe(addr string, handler Handler) error {
+	encrypter, err := NewDefaultSessionEncrypter()
+	if err != nil {
+		return err
+	}
+
+	srv := &Server{
+		Addr:                 addr,
+		Encryption:           true,
+		SessionEncrypter:     encrypter,
+		SessionAuthenticator: &MojangSessionAuthenticator{},
+		Handler:              handler,
+	}
+
+	return srv.ListenAndServe()
 }
 
 type ResponseWriter interface {
 	PacketWriter
-	NextState()
-	EnableEncryption(sharedSecret []byte) error
+	SetState(state protocol.State)
+	SetEncryption(sharedSecret []byte) error
 	SetCompression(threshold int)
 }
 
@@ -170,15 +272,15 @@ type responseWriter struct {
 	conn      *conn
 }
 
-func (w *responseWriter) NextState() {
-	w.nextState = true
+func (w *responseWriter) SetState(state protocol.State) {
+	w.conn.state = state
 }
 
 func (w *responseWriter) WritePacket(p protocol.Packet) error {
 	return w.conn.WritePacket(p)
 }
 
-func (w *responseWriter) EnableEncryption(sharedSecret []byte) error {
+func (w *responseWriter) SetEncryption(sharedSecret []byte) error {
 	block, err := aes.NewCipher(sharedSecret)
 	if err != nil {
 		return err
@@ -196,59 +298,35 @@ func (w *responseWriter) SetCompression(threshold int) {
 }
 
 type Request struct {
-	ProtocolState protocol.State
-	Packet        protocol.Packet
-	RemoteAddr    string
-	Server        *Server
-	Player        Player
+	Packet     protocol.Packet
+	RemoteAddr string
+	Server     *Server
 
 	conn *conn
 }
 
-func (srv *Server) HandleConn(c net.Conn) {
-	conn := wrapConn(c)
-	defer conn.Close()
-	srv.players.add(&conn, player{})
-	defer srv.players.delete(&conn)
+func (r Request) ProtocolState() protocol.State {
+	return r.conn.state
+}
 
-	var player Player
+func (r *Request) Player() Player {
+	return r.Server.Player(r)
+}
 
-	for {
-		pk, err := conn.ReadPacket()
-		if err != nil {
-			return
-		}
+func (r *Request) UpdatePlayerUsername(username string) {
+	player := r.Server.getPlayer(r.conn)
+	player.username = username
+	r.Server.putPlayer(r.conn, player)
+}
 
-		r := Request{
-			ProtocolState: conn.State(),
-			Packet:        pk,
-			RemoteAddr:    conn.RemoteAddr().String(),
-			Server:        srv,
-			Player:        player,
-			conn:          &conn,
-		}
+func (r *Request) UpdatePlayerUUID(uuid uuid.UUID) {
+	player := r.Server.getPlayer(r.conn)
+	player.uuid = uuid
+	r.Server.putPlayer(r.conn, player)
+}
 
-		w := responseWriter{
-			conn: &conn,
-		}
-
-		switch conn.State() {
-		case protocol.StateHandshaking:
-			srv.HandshakeHandler.ServeProtocol(&w, &r)
-			conn.state = protocol.StateStatus
-			if w.nextState {
-				conn.state = protocol.StateLogin
-			}
-		case protocol.StateStatus:
-			srv.StatusHandler.ServeProtocol(&w, &r)
-		case protocol.StateLogin:
-			srv.LoginHandler.ServeProtocol(&w, &r)
-			player, _ = srv.players.get(&conn)
-			if w.nextState {
-				conn.state = protocol.StatePlay
-			}
-		case protocol.StatePlay:
-			srv.PlayHandler.ServeProtocol(&w, &r)
-		}
-	}
+func (r *Request) UpdatePlayerSkin(skin Skin) {
+	player := r.Server.getPlayer(r.conn)
+	player.skin = skin
+	r.Server.putPlayer(r.conn, player)
 }

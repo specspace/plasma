@@ -23,7 +23,7 @@ func MojangSessionServerURLHasJoinedWithIP(username, sessionHash, ip string) str
 	)
 }
 
-func SessionHash(serverID string, sharedSecret, publicKey []byte) string {
+func GenerateSessionHash(serverID string, sharedSecret, publicKey []byte) string {
 	notchHash := NewSha1Hash()
 	notchHash.Update([]byte(serverID))
 	notchHash.Update(sharedSecret)

@@ -9,10 +9,10 @@ const (
 )
 
 type ClientBoundJoinGame struct {
-	EntityID            protocol.VarInt
+	EntityID            protocol.Int
 	IsHardcore          protocol.Boolean
 	Gamemode            protocol.UnsignedByte
-	PreviousGamemode    protocol.UnsignedByte
+	PreviousGamemode    protocol.Byte
 	WorldNames          protocol.IdentifierArray
 	DimensionCodec      protocol.NBT
 	Dimension           protocol.NBT
