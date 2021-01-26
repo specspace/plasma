@@ -63,7 +63,7 @@ func TestStatusResponse_JSON(t *testing.T) {
 						ID:   "175",
 					},
 				},
-				IconPath: "./.test/test-icon-64x64.png",
+				IconPath: "./.testfiles/test-icon-64x64.png",
 			},
 			expectedJSON: "{\"version\":{\"name\":\"1.16.4\",\"protocol\":754},\"players\":{\"max\":20,\"online\":20," +
 				"\"sample\":[{\"name\":\"mb175\",\"id\":\"175\"}]},\"description\":{\"text\":\"test\"},\"favicon\":" +
