@@ -25,13 +25,12 @@ type Handler interface {
 }
 
 type StatusResponse struct {
-	DisconnectMessage string
-	Version           Version
-	IconPath          string
-	Motd              string
-	MaxPlayers        int
-	PlayersOnline     int
-	Players           []struct {
+	Version       Version
+	IconPath      string
+	Motd          string
+	MaxPlayers    int
+	PlayersOnline int
+	Players       []struct {
 		Name string
 		ID   string
 	}
