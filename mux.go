@@ -1,22 +1,28 @@
 package plasma
 
 import (
+	"github.com/specspace/plasma/protocol"
 	"sync"
 )
 
 type ServeMux struct {
-	handlers map[byte]Handler
+	handlers map[protocol.State]map[byte]Handler
 	mu       sync.RWMutex
 }
 
 func NewServeMux() *ServeMux {
 	return &ServeMux{
-		handlers: map[byte]Handler{},
-		mu:       sync.RWMutex{},
+		handlers: map[protocol.State]map[byte]Handler{
+			protocol.StateHandshaking: {},
+			protocol.StateStatus:      {},
+			protocol.StateLogin:       {},
+			protocol.StatePlay:        {},
+		},
+		mu: sync.RWMutex{},
 	}
 }
 
-func (mux *ServeMux) Handle(packetID byte, handler Handler) {
+func (mux *ServeMux) Handle(state protocol.State, packetID byte, handler Handler) {
 	mux.mu.Lock()
 	defer mux.mu.Unlock()
 
@@ -24,22 +30,22 @@ func (mux *ServeMux) Handle(packetID byte, handler Handler) {
 		panic("plasma: nil handler")
 	}
 
-	mux.handlers[packetID] = handler
+	mux.handlers[state][packetID] = handler
 }
 
-func (mux *ServeMux) HandleFunc(packetID byte, handler func(w ResponseWriter, r *Request)) {
+func (mux *ServeMux) HandleFunc(state protocol.State, packetID byte, handler func(w ResponseWriter, r *Request)) {
 	if handler == nil {
 		panic("plasma: nil handler")
 	}
 
-	mux.Handle(packetID, HandlerFunc(handler))
+	mux.Handle(state, packetID, HandlerFunc(handler))
 }
 
 func (mux *ServeMux) Handler(r *Request) (Handler, byte) {
 	mux.mu.RLock()
 	defer mux.mu.RUnlock()
 
-	handler, ok := mux.handlers[r.Packet.ID]
+	handler, ok := mux.handlers[r.conn.state][r.Packet.ID]
 	if !ok {
 		return nil, r.Packet.ID
 	}
