@@ -61,3 +61,13 @@ func (mux *ServeMux) ServeProtocol(w ResponseWriter, r *Request) {
 
 	handler.ServeProtocol(w, r)
 }
+
+var DefaultServeMux = NewServeMux()
+
+func Handle(state protocol.State, packetID byte, handler Handler) {
+	DefaultServeMux.Handle(state, packetID, handler)
+}
+
+func HandleFunc(state protocol.State, packetID byte, handler func(w ResponseWriter, r *Request)) {
+	DefaultServeMux.HandleFunc(state, packetID, handler)
+}
