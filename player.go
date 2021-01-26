@@ -4,6 +4,11 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+type Skin struct {
+	Value     string
+	Signature string
+}
+
 type player struct {
 	*conn
 	uuid     uuid.UUID

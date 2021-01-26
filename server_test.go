@@ -1,7 +1,6 @@
 package plasma
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -16,8 +15,10 @@ func TestStatusResponse_JSON(t *testing.T) {
 					Name:           "1.16.4",
 					ProtocolNumber: 754,
 				},
-				Motd:       "test",
-				MaxPlayers: 20,
+				MOTD: "test",
+				PlayersInfo: PlayersInfo{
+					MaxPlayers: 20,
+				},
 			},
 			expectedJSON: "{\"version\":{\"name\":\"1.16.4\",\"protocol\":754},\"players\":{\"max\":20,\"online\":0," +
 				"\"sample\":null},\"description\":{\"text\":\"test\"},\"favicon\":\"\"}",
@@ -28,16 +29,15 @@ func TestStatusResponse_JSON(t *testing.T) {
 					Name:           "1.16.4",
 					ProtocolNumber: 754,
 				},
-				Motd:          "test",
-				MaxPlayers:    20,
-				PlayersOnline: 20,
-				Players: []struct {
-					Name string
-					ID   string
-				}{
-					{
-						Name: "Haveachin",
-						ID:   "1234",
+				MOTD: "test",
+				PlayersInfo: PlayersInfo{
+					MaxPlayers:    20,
+					PlayersOnline: 20,
+					Players: []PlayerInfo{
+						{
+							Name: "Haveachin",
+							UUID: "1234",
+						},
 					},
 				},
 			},
@@ -51,16 +51,15 @@ func TestStatusResponse_JSON(t *testing.T) {
 					Name:           "1.16.4",
 					ProtocolNumber: 754,
 				},
-				Motd:          "test",
-				MaxPlayers:    20,
-				PlayersOnline: 20,
-				Players: []struct {
-					Name string
-					ID   string
-				}{
-					{
-						Name: "mb175",
-						ID:   "175",
+				MOTD: "test",
+				PlayersInfo: PlayersInfo{
+					MaxPlayers:    20,
+					PlayersOnline: 20,
+					Players: []PlayerInfo{
+						{
+							Name: "mb175",
+							UUID: "175",
+						},
 					},
 				},
 				IconPath: "./.testfiles/test-icon-64x64.png",
@@ -74,17 +73,13 @@ func TestStatusResponse_JSON(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		srJson, err := tc.statusResponse.JSON()
-		if err != nil {
-			t.Error(err)
-		}
-		bb, err := json.Marshal(srJson)
+		bb, err := tc.statusResponse.JSON()
 		if err != nil {
 			t.Error(err)
 		}
 
 		if tc.expectedJSON != string(bb) {
-			t.Fail()
+			t.Errorf("got %s; want %s", tc.expectedJSON, string(bb))
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/aes"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/gofrs/uuid"
@@ -24,66 +25,54 @@ type Handler interface {
 	ServeProtocol(w ResponseWriter, r *Request)
 }
 
+type Version struct {
+	// Name of the version eg. "1.16.5"
+	Name string `json:"name"`
+	// Protocol version number eg. 754
+	ProtocolNumber int `json:"protocol"`
+}
+
+type PlayerInfo struct {
+	Name string `json:"name"`
+	UUID string `json:"id"`
+}
+
+type PlayersInfo struct {
+	MaxPlayers    int          `json:"max"`
+	PlayersOnline int          `json:"online"`
+	Players       []PlayerInfo `json:"sample"`
+}
+
 type StatusResponse struct {
-	Version       Version
-	IconPath      string
-	Motd          string
-	MaxPlayers    int
-	PlayersOnline int
-	Players       []struct {
-		Name string
-		ID   string
-	}
+	Version     Version
+	PlayersInfo PlayersInfo
+	IconPath    string
+	MOTD        string
 }
 
-type StatusResponseJSON struct {
-	Version struct {
-		Name     string `json:"name"`
-		Protocol int    `json:"protocol"`
-	} `json:"version"`
-	Players struct {
-		Max    int `json:"max"`
-		Online int `json:"online"`
-		Sample []struct {
-			Name string `json:"name"`
-			ID   string `json:"id"`
-		} `json:"sample"`
-	} `json:"players"`
-	Description struct {
-		Text string `json:"text"`
-	} `json:"description"`
-	Favicon string `json:"favicon"`
-}
+func (sr StatusResponse) JSON() ([]byte, error) {
+	response := struct {
+		Version     Version     `json:"version"`
+		Players     PlayersInfo `json:"players"`
+		Description struct {
+			Text string `json:"text"`
+		} `json:"description"`
+		Favicon string `json:"favicon"`
+	}{}
 
-func (sr StatusResponse) JSON() (StatusResponseJSON, error) {
-	var response StatusResponseJSON
-	response.Version.Name = sr.Version.Name
-	response.Version.Protocol = sr.Version.ProtocolNumber
-	response.Players.Max = sr.MaxPlayers
-	response.Players.Online = sr.PlayersOnline
-	response.Description.Text = sr.Motd
-
-	for _, p := range sr.Players {
-		response.Players.Sample = append(response.Players.Sample,
-			struct {
-				Name string `json:"name"`
-				ID   string `json:"id"`
-			}{
-				Name: p.Name,
-				ID:   p.ID,
-			},
-		)
-	}
+	response.Version = sr.Version
+	response.Players = sr.PlayersInfo
+	response.Description.Text = sr.MOTD
 
 	if sr.IconPath != "" {
 		img64, err := loadImageAndEncodeToBase64String(sr.IconPath)
 		if err != nil {
-			return response, err
+			return nil, err
 		}
 		response.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
 	}
 
-	return response, nil
+	return json.Marshal(response)
 }
 
 func loadImageAndEncodeToBase64String(path string) (string, error) {
@@ -119,6 +108,7 @@ type Server struct {
 	ID         string
 	Addr       string
 	Encryption bool
+	MaxPlayers int
 
 	SessionEncrypter     SessionEncrypter
 	SessionAuthenticator SessionAuthenticator
@@ -170,6 +160,26 @@ func (srv *Server) AddPlayer(r *Request, username string) {
 	})
 }
 
+func (srv *Server) PlayersInfo() PlayersInfo {
+	pp := srv.Players()
+	var players []PlayerInfo
+
+	for _, p := range pp {
+		players = append(players, PlayerInfo{
+			Name: p.Username(),
+			UUID: p.UUID().String(),
+		})
+	}
+
+	srv.mu.RLock()
+	defer srv.mu.RUnlock()
+	return PlayersInfo{
+		MaxPlayers:    srv.MaxPlayers,
+		PlayersOnline: len(pp),
+		Players:       players,
+	}
+}
+
 func (srv *Server) IsRunning() bool {
 	return srv.listener != nil
 }
@@ -214,7 +224,6 @@ func (srv *Server) ListenAndServe() error {
 
 func (srv *Server) serve(c net.Conn) {
 	conn := wrapConn(c)
-	srv.putPlayer(conn, player{})
 	defer func() {
 		srv.removePlayer(conn)
 		conn.Close()
@@ -246,6 +255,10 @@ func ListenAndServe(addr string, handler Handler) error {
 	encrypter, err := NewDefaultSessionEncrypter()
 	if err != nil {
 		return err
+	}
+
+	if handler == nil {
+		handler = DefaultServeMux
 	}
 
 	srv := &Server{
