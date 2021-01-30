@@ -321,6 +321,10 @@ func (r Request) ProtocolState() protocol.State {
 	return r.conn.state
 }
 
+func (r Request) Conn() Conn {
+	return r.conn
+}
+
 func (r *Request) Player() Player {
 	return r.Server.Player(r)
 }
