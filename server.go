@@ -319,6 +319,16 @@ func (r Request) Server() *Server {
 	return r.server
 }
 
+// ClonePacket makes a deep copy of the packet and returns it.
+func (r Request) ClonePacket() protocol.Packet {
+	data := make([]byte, len(r.Packet.Data))
+	copy(data, r.Packet.Data)
+	return protocol.Packet{
+		ID:   r.Packet.ID,
+		Data: data,
+	}
+}
+
 func (r Request) ProtocolState() protocol.State {
 	return r.conn.state
 }
