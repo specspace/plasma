@@ -51,7 +51,7 @@ func responseHandler(w plasma.ResponseWriter, r *plasma.Request) {
 			Name:           "Plasma 1.16.4",
 			ProtocolNumber: 754,
 		},
-		PlayersInfo: r.Server.PlayersInfo(),
+		PlayersInfo: r.Server().PlayersInfo(),
 		IconPath:    "",
 		MOTD:        "Hello World",
 	}

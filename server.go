@@ -230,9 +230,8 @@ func (srv *Server) serve(c net.Conn) {
 	}()
 
 	r := Request{
-		RemoteAddr: conn.RemoteAddr().String(),
-		Server:     srv,
-		conn:       conn,
+		server: srv,
+		conn:   conn,
 	}
 
 	w := responseWriter{
@@ -310,11 +309,14 @@ func (w *responseWriter) SetCompression(threshold int) {
 }
 
 type Request struct {
-	Packet     protocol.Packet
-	RemoteAddr string
-	Server     *Server
+	Packet protocol.Packet
 
-	conn *conn
+	server *Server
+	conn   *conn
+}
+
+func (r Request) Server() *Server {
+	return r.server
 }
 
 func (r Request) ProtocolState() protocol.State {
@@ -326,23 +328,23 @@ func (r Request) Conn() Conn {
 }
 
 func (r *Request) Player() Player {
-	return r.Server.Player(r)
+	return r.server.Player(r)
 }
 
 func (r *Request) UpdatePlayerUsername(username string) {
-	player := r.Server.getPlayer(r.conn)
+	player := r.server.getPlayer(r.conn)
 	player.username = username
-	r.Server.putPlayer(r.conn, player)
+	r.server.putPlayer(r.conn, player)
 }
 
 func (r *Request) UpdatePlayerUUID(uuid uuid.UUID) {
-	player := r.Server.getPlayer(r.conn)
+	player := r.server.getPlayer(r.conn)
 	player.uuid = uuid
-	r.Server.putPlayer(r.conn, player)
+	r.server.putPlayer(r.conn, player)
 }
 
 func (r *Request) UpdatePlayerSkin(skin Skin) {
-	player := r.Server.getPlayer(r.conn)
+	player := r.server.getPlayer(r.conn)
 	player.skin = skin
-	r.Server.putPlayer(r.conn, player)
+	r.server.putPlayer(r.conn, player)
 }
