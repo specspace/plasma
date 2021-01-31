@@ -17,6 +17,10 @@ type PacketReader interface {
 	ReadPacket() (protocol.Packet, error)
 }
 
+type PacketPeeker interface {
+	PeekPacket() (protocol.Packet, error)
+}
+
 type conn struct {
 	net.Conn
 
@@ -48,6 +52,8 @@ type Conn interface {
 	net.Conn
 	PacketWriter
 	PacketReader
+	PacketPeeker
+
 	State() protocol.State
 	Threshold() int
 }
