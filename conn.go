@@ -26,6 +26,23 @@ type conn struct {
 	threshold int
 }
 
+type Listener struct {
+	net.Listener
+}
+
+func Listen(addr string) (Listener, error) {
+	l, err := net.Listen("tcp", addr)
+	return Listener{Listener: l}, err
+}
+
+func (l Listener) Accept() (Conn, error) {
+	conn, err := l.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return wrapConn(conn), nil
+}
+
 // Conn is a minecraft Connection
 type Conn interface {
 	net.Conn
