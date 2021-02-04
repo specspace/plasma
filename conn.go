@@ -40,7 +40,7 @@ func Listen(addr string) (Listener, error) {
 }
 
 func (l Listener) Accept() (Conn, error) {
-	conn, err := l.Accept()
+	conn, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
 	}
